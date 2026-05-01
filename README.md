@@ -28,6 +28,7 @@ Create tags, audit configurations, generate tracking plans, and publish changes,
 - [How It Works](#how-it-works)
 - [Safety Features](#safety-features)
 - [Self-Hosting](#self-hosting)
+- [Examples](#service-account-mode-s2s)
 - [Available Tools](#available-tools)
 - [Resources & Prompts](#resources--prompts)
 - [Better AI Context](#better-ai-context)
@@ -240,6 +241,64 @@ Your credentials are never stored—the server uses token-based authentication t
 ## Self-Hosting
 
 Want to run your own instance?
+
+### Service Account Mode (S2S)
+
+Self-hosted deployments can use a Google Service Account so the whole team shares access — no individual GTM permissions needed.
+
+**How it works:**
+- The server authenticates to Google Tag Manager using a Service Account
+- Team members connect with a shared API key — no personal GTM access required
+- AI clients (Claude Code, ChatGPT, etc.) still do a one-time OAuth login *to the server*, but all GTM calls run under the Service Account
+- Programmatic clients (scripts, CI/CD, APIs) skip OAuth entirely and use the API key directly
+
+**Setup:**
+
+1. Create a Service Account in [Google Cloud Console](https://console.cloud.google.com/) → IAM & Admin → Service Accounts
+2. In [Google Tag Manager](https://tagmanager.google.com) → Account → Admin → User Management → add the Service Account email as **Account Administrator**
+3. Download the JSON key file
+4. Configure the server:
+
+```bash
+SERVICE_ACCOUNT_API_KEY=$(openssl rand -hex 32)   # share this with your team
+GOOGLE_SERVICE_ACCOUNT_KEY_JSON=$(cat key.json)   # paste JSON content
+go run main.go
+```
+
+On GCP (Cloud Run, GKE, Compute Engine): omit `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` — Workload Identity is used automatically.
+
+**Connecting Claude Code:**
+
+Add the API key as a pre-configured header so Claude Code uses S2S automatically:
+
+```json
+{
+  "mcpServers": {
+    "gtm": {
+      "type": "http",
+      "url": "http://your-server:8080",
+      "headers": {
+        "Authorization": "Bearer your-api-key"
+      }
+    }
+  }
+}
+```
+
+**Programmatic / API access:**
+
+Any HTTP client can call the server directly — no browser, no OAuth:
+
+```bash
+curl -H "Authorization: Bearer your-api-key" \
+     -H "Content-Type: application/json" \
+     http://your-server:8080/mcp \
+     -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+See [`examples/gtm_agent.py`](examples/gtm_agent.py) for a complete Python agent that uses Claude to manage GTM programmatically via the API key.
+
+---
 
 ### Docker Setup
 
