@@ -33,6 +33,10 @@ type Config struct {
 	// AllowedHosts lists additional trusted hostnames for dynamic base URL resolution.
 	// Enables Docker-to-Docker contexts where the server is reached via internal aliases.
 	AllowedHosts []string
+
+	// Service account authentication (S2S mode)
+	ServiceAccountAPIKey  string // SERVICE_ACCOUNT_API_KEY
+	ServiceAccountKeyJSON string // GOOGLE_SERVICE_ACCOUNT_KEY_JSON
 }
 
 // Load reads configuration from environment variables.
@@ -53,6 +57,8 @@ func Load() (*Config, error) {
 		LogLevel:          getEnv("LOG_LEVEL", "info"),
 		AccessTokenTTL:    getEnvDuration("ACCESS_TOKEN_TTL", 8*time.Hour),
 		AllowedHosts:      getEnvList("ALLOWED_HOSTS"),
+		ServiceAccountAPIKey:  getEnv("SERVICE_ACCOUNT_API_KEY", ""),
+		ServiceAccountKeyJSON: getEnv("GOOGLE_SERVICE_ACCOUNT_KEY_JSON", ""),
 	}
 
 	// Validation is deferred to when auth is actually needed
