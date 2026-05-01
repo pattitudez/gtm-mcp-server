@@ -86,8 +86,16 @@ func RegisterTools(server *mcp.Server) {
 	RegisterPrompts(server)
 }
 
-// getClient creates a GTM client from the request context with auto-refreshing tokens.
+// getClient creates a GTM client from the request context.
+// In S2S mode the shared service account token source is used directly.
+// In OAuth mode an auto-refreshing token source is built from the user's Google token.
 func getClient(ctx context.Context) (*Client, error) {
+	// S2S mode: shared service account token source injected by middleware
+	if saTS := auth.GetSATokenSource(ctx); saTS != nil {
+		return NewClient(ctx, saTS)
+	}
+
+	// OAuth mode: build auto-refreshing token source from user's Google token
 	tokenInfo := auth.GetTokenInfo(ctx)
 	if tokenInfo == nil || tokenInfo.GoogleToken == nil {
 		return nil, fmt.Errorf("not authenticated - please authenticate with Google first")
@@ -96,7 +104,6 @@ func getClient(ctx context.Context) (*Client, error) {
 	store := auth.GetTokenStore(ctx)
 	google := auth.GetGoogleProvider(ctx)
 
-	// Create auto-refreshing token source
 	var tokenSource = auth.NewAutoRefreshTokenSource(
 		store,
 		tokenInfo.AccessToken,
