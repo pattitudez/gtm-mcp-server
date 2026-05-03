@@ -11,7 +11,7 @@ import (
 )
 
 func TestNewRateLimiter(t *testing.T) {
-	rl := NewRateLimiter(10, 20)
+	rl := NewRateLimiter(10, 20, false)
 
 	if rl == nil {
 		t.Fatal("expected non-nil RateLimiter")
@@ -32,7 +32,7 @@ func TestNewRateLimiter(t *testing.T) {
 
 func TestRateLimiter_BasicAllowDeny(t *testing.T) {
 	// Create rate limiter: 1 request per second, burst of 2
-	rl := NewRateLimiter(1, 2)
+	rl := NewRateLimiter(1, 2, false)
 
 	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -86,7 +86,7 @@ func TestRateLimiter_BasicAllowDeny(t *testing.T) {
 
 func TestRateLimiter_PerIPIsolation(t *testing.T) {
 	// Create rate limiter: 1 request per second, burst of 1
-	rl := NewRateLimiter(1, 1)
+	rl := NewRateLimiter(1, 1, false)
 
 	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -126,7 +126,7 @@ func TestRateLimiter_PerIPIsolation(t *testing.T) {
 
 func TestRateLimiter_XForwardedFor(t *testing.T) {
 	// Create rate limiter: 1 request per second, burst of 1
-	rl := NewRateLimiter(1, 1)
+	rl := NewRateLimiter(1, 1, true)
 
 	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -158,7 +158,7 @@ func TestRateLimiter_XForwardedFor(t *testing.T) {
 
 func TestRateLimiter_BurstHandling(t *testing.T) {
 	// Create rate limiter: 10 requests per second, burst of 5
-	rl := NewRateLimiter(10, 5)
+	rl := NewRateLimiter(10, 5, false)
 
 	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -191,7 +191,7 @@ func TestRateLimiter_BurstHandling(t *testing.T) {
 
 func TestRateLimiter_MiddlewareFunc(t *testing.T) {
 	// Test the MiddlewareFunc variant
-	rl := NewRateLimiter(1, 1)
+	rl := NewRateLimiter(1, 1, false)
 
 	handler := rl.MiddlewareFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -221,7 +221,7 @@ func TestRateLimiter_MiddlewareFunc(t *testing.T) {
 
 func TestRateLimiter_ConcurrentAccess(t *testing.T) {
 	// Test concurrent access to the rate limiter
-	rl := NewRateLimiter(100, 200)
+	rl := NewRateLimiter(100, 200, false)
 
 	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -257,7 +257,7 @@ func TestRateLimiter_ConcurrentAccess(t *testing.T) {
 
 func TestRateLimiter_ConcurrentSameIP(t *testing.T) {
 	// Test concurrent requests from the same IP
-	rl := NewRateLimiter(10, 20)
+	rl := NewRateLimiter(10, 20, false)
 
 	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -393,7 +393,7 @@ func TestMaxBytesMiddleware_NilBody(t *testing.T) {
 
 func TestRateLimiter_RecoveryAfterWait(t *testing.T) {
 	// Test that rate limiter allows requests again after waiting
-	rl := NewRateLimiter(10, 2) // 10 req/sec, burst of 2
+	rl := NewRateLimiter(10, 2, false) // 10 req/sec, burst of 2
 
 	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -438,7 +438,7 @@ func TestRateLimiter_RecoveryAfterWait(t *testing.T) {
 }
 
 func TestRateLimiter_DifferentIPsIndependent(t *testing.T) {
-	rl := NewRateLimiter(1, 1)
+	rl := NewRateLimiter(1, 1, false)
 
 	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

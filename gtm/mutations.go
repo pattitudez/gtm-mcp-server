@@ -304,14 +304,13 @@ func (c *Client) UpdateVariable(ctx context.Context, path string, input *Variabl
 	}
 
 	variable := &tagmanager.Variable{
-		Name:        input.Name,
-		Type:        input.Type,
-		Parameter:   toAPIParams(input.Parameter),
-		Notes:       input.Notes,
-		Fingerprint: current.Fingerprint,
+		Name:      input.Name,
+		Type:      input.Type,
+		Parameter: toAPIParams(input.Parameter),
+		Notes:     input.Notes,
 	}
 
-	result, err := c.Service.Accounts.Containers.Workspaces.Variables.Update(path, variable).Context(ctx).Do()
+	result, err := c.Service.Accounts.Containers.Workspaces.Variables.Update(path, variable).Fingerprint(current.Fingerprint).Context(ctx).Do()
 	if err != nil {
 		return nil, mapGoogleError(err)
 	}
@@ -442,28 +441,6 @@ func toAPIConditions(conditions []Condition) []*tagmanager.Condition {
 		}
 	}
 	return result
-}
-
-// triggerForceSendFields returns the list of fields that must be force-sent
-// to the Google API to prevent omitempty from dropping them.
-func triggerForceSendFields(input *TriggerInput) []string {
-	var fields []string
-	if len(input.Filter) > 0 {
-		fields = append(fields, "Filter")
-	}
-	if len(input.AutoEventFilter) > 0 {
-		fields = append(fields, "AutoEventFilter")
-	}
-	if len(input.CustomEventFilter) > 0 {
-		fields = append(fields, "CustomEventFilter")
-	}
-	if len(input.Parameter) > 0 {
-		fields = append(fields, "Parameter")
-	}
-	if input.EventName != nil {
-		fields = append(fields, "EventName")
-	}
-	return fields
 }
 
 // BuildTagPath constructs a tag path from IDs.

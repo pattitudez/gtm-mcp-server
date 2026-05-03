@@ -420,6 +420,10 @@ func (s *Server) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Refresh the Google token if needed
+	if tokenInfo.GoogleToken == nil {
+		s.tokenError(w, "invalid_grant", "Token has no upstream credentials")
+		return
+	}
 	if tokenInfo.GoogleToken.Expiry.Before(time.Now()) {
 		newGoogleToken, err := s.google.RefreshToken(r.Context(), tokenInfo.GoogleToken.RefreshToken)
 		if err != nil {

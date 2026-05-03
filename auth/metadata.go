@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 )
@@ -53,13 +54,15 @@ func MetadataHandler(baseURL string, resolver *URLResolver) http.HandlerFunc {
 			}
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Cache-Control", "public, max-age=3600")
-
-		if err := json.NewEncoder(w).Encode(metadata); err != nil {
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(metadata); err != nil {
 			http.Error(w, "Failed to encode metadata", http.StatusInternalServerError)
 			return
 		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		w.Write(buf.Bytes())
 	}
 }

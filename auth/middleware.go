@@ -109,6 +109,8 @@ func Middleware(store TokenStore, google *GoogleProvider, logger *slog.Logger, b
 }
 
 // tryAutoRefresh attempts to refresh an expired token transparently.
+// It refreshes the Google token and updates the EXISTING token entry in-place,
+// keeping the same access token so the client's bearer token remains valid.
 func tryAutoRefresh(ctx context.Context, store TokenStore, google *GoogleProvider, logger *slog.Logger, accessToken string, baseURL string, accessTokenTTL time.Duration) (*TokenInfo, error) {
 	logger.Info("auth_token_expired", "token_prefix", truncateToken(accessToken), "action", "auto_refresh")
 
@@ -138,44 +140,27 @@ func tryAutoRefresh(ctx context.Context, store TokenStore, google *GoogleProvide
 		return nil, fmt.Errorf("Token expired, failed to refresh")
 	}
 
-	// Generate new tokens (rotation)
-	newAccessToken, err := GenerateToken(32)
-	if err != nil {
-		logger.Warn("auth_auto_refresh_failed", "reason", "token_generation_failed", "error", err)
-		return nil, fmt.Errorf("Token expired")
-	}
+	// Update the existing token in-place: extend expiry and swap the Google token.
+	// The access token stays the same so the client's current bearer remains valid.
+	expiredToken.GoogleToken = newGoogleToken
+	expiredToken.ExpiresAt = time.Now().Add(accessTokenTTL)
 
-	newRefreshToken, err := GenerateToken(32)
-	if err != nil {
-		logger.Warn("auth_auto_refresh_failed", "reason", "token_generation_failed", "error", err)
-		return nil, fmt.Errorf("Token expired")
-	}
-
-	// Delete old token
-	_ = store.DeleteToken(accessToken)
-
-	// Store new token
-	newTokenInfo := &TokenInfo{
-		AccessToken:      newAccessToken,
-		RefreshToken:     newRefreshToken,
-		ExpiresAt:        time.Now().Add(accessTokenTTL),
-		RefreshExpiresAt: time.Now().Add(30 * 24 * time.Hour),
-		GoogleToken:      newGoogleToken,
-		ClientID:         expiredToken.ClientID,
-		CreatedAt:        time.Now(),
-	}
-
-	if err := store.StoreToken(newTokenInfo); err != nil {
+	if err := store.UpdateGoogleToken(accessToken, newGoogleToken); err != nil {
 		logger.Warn("auth_auto_refresh_failed", "reason", "store_failed", "error", err)
 		return nil, fmt.Errorf("Token expired")
 	}
 
+	// Extend the access token expiry in the store
+	if err := store.ExtendTokenExpiry(accessToken, expiredToken.ExpiresAt); err != nil {
+		logger.Warn("auth_auto_refresh_extend_failed", "error", err)
+	}
+
 	logger.Info("auth_auto_refresh_success",
 		"client_id", expiredToken.ClientID,
-		"new_expiry", newTokenInfo.ExpiresAt,
+		"new_expiry", expiredToken.ExpiresAt,
 	)
 
-	return newTokenInfo, nil
+	return expiredToken, nil
 }
 
 // OptionalMiddleware allows unauthenticated requests but adds token info if present.

@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -63,6 +62,15 @@ func (m *mockTokenStore) UpdateGoogleToken(accessToken string, googleToken *oaut
 		return ErrTokenNotFound
 	}
 	info.GoogleToken = googleToken
+	return nil
+}
+
+func (m *mockTokenStore) ExtendTokenExpiry(accessToken string, newExpiry time.Time) error {
+	info, ok := m.tokens[accessToken]
+	if !ok {
+		return ErrTokenNotFound
+	}
+	info.ExpiresAt = newExpiry
 	return nil
 }
 
@@ -250,22 +258,20 @@ func TestMiddleware_ExpiredToken_AutoRefreshSuccess(t *testing.T) {
 		t.Errorf("expected status 200 after auto-refresh, got %d", w.Code)
 	}
 
-	// The old token should be deleted
-	_, err := store.GetTokenByAccessIncludeExpired("expired-token")
-	if !errors.Is(err, ErrTokenNotFound) {
-		t.Error("expected old token to be deleted after refresh")
+	// The same access token should still be valid (extended in-place)
+	refreshed, err := store.GetTokenByAccessIncludeExpired("expired-token")
+	if err != nil {
+		t.Fatal("expected token to still exist after in-place refresh")
 	}
 
-	// A new token should exist in the store
-	found := false
-	for _, ti := range store.tokens {
-		if ti.ClientID == "test-client" && ti.GoogleToken.AccessToken == "new-google-access" {
-			found = true
-			break
-		}
+	// Google token should be updated
+	if refreshed.GoogleToken.AccessToken != "new-google-access" {
+		t.Errorf("expected Google token to be refreshed, got %s", refreshed.GoogleToken.AccessToken)
 	}
-	if !found {
-		t.Error("expected new token to be stored after auto-refresh")
+
+	// Expiry should be extended
+	if refreshed.ExpiresAt.Before(time.Now()) {
+		t.Error("expected token expiry to be extended into the future")
 	}
 }
 

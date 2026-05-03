@@ -64,6 +64,7 @@ type TokenStore interface {
 	GetTokenByRefresh(refreshToken string) (*TokenInfo, error)
 	DeleteToken(accessToken string) error
 	UpdateGoogleToken(accessToken string, googleToken *oauth2.Token) error
+	ExtendTokenExpiry(accessToken string, newExpiry time.Time) error
 
 	// State operations (for OAuth flow)
 	StoreState(state *AuthState) error
@@ -204,6 +205,19 @@ func (s *MemoryTokenStore) UpdateGoogleToken(accessToken string, googleToken *oa
 	return nil
 }
 
+func (s *MemoryTokenStore) ExtendTokenExpiry(accessToken string, newExpiry time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	info, ok := s.tokens[accessToken]
+	if !ok {
+		return ErrTokenNotFound
+	}
+
+	info.ExpiresAt = newExpiry
+	return nil
+}
+
 func (s *MemoryTokenStore) StoreState(state *AuthState) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -315,8 +329,8 @@ func (s *MemoryTokenStore) cleanup(ctx context.Context) {
 					delete(s.states, stateValue)
 				}
 			}
-			// Evict oldest clients if over limit
-			if len(s.clients) > maxClients {
+			// Evict oldest clients until back under limit
+			for len(s.clients) > maxClients {
 				var oldest string
 				var oldestTime time.Time
 				for id, client := range s.clients {
@@ -327,6 +341,8 @@ func (s *MemoryTokenStore) cleanup(ctx context.Context) {
 				}
 				if oldest != "" {
 					delete(s.clients, oldest)
+				} else {
+					break
 				}
 			}
 			s.mu.Unlock()

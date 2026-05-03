@@ -348,6 +348,16 @@ docker compose up -d
 claude mcp add -t http gtm http://localhost:8080
 ```
 
+#### Reverse Proxy (TRUST_PROXY)
+
+When running behind a reverse proxy (Caddy, nginx, Cloudflare), set `TRUST_PROXY=true` so the rate limiter uses the client's real IP from `X-Forwarded-For` instead of the proxy's address:
+
+```bash
+TRUST_PROXY=true
+```
+
+The Docker Compose setup sets this automatically since the container runs behind Caddy. When running the binary directly without a proxy, leave it unset or `false` — otherwise clients can spoof IPs to bypass rate limiting.
+
 #### Docker-to-Docker
 
 If another container needs to reach the MCP server via an internal Docker network alias, add `ALLOWED_HOSTS` to your `.env`:

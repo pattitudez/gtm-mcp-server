@@ -13,10 +13,12 @@ const maxVisitors = 10000
 
 // RateLimiter provides per-IP rate limiting for HTTP endpoints.
 type RateLimiter struct {
-	mu       sync.Mutex
-	visitors map[string]*visitor
-	rate     rate.Limit
-	burst    int
+	mu           sync.Mutex
+	visitors     map[string]*visitor
+	rate         rate.Limit
+	burst        int
+	done         chan struct{}
+	trustProxy   bool
 }
 
 type visitor struct {
@@ -25,14 +27,23 @@ type visitor struct {
 }
 
 // NewRateLimiter creates a rate limiter with the given requests per second and burst.
-func NewRateLimiter(rps float64, burst int) *RateLimiter {
+// trustProxy controls whether X-Forwarded-For is used for IP extraction.
+// Set to true only when the server is behind a trusted reverse proxy (e.g. Caddy).
+func NewRateLimiter(rps float64, burst int, trustProxy bool) *RateLimiter {
 	rl := &RateLimiter{
-		visitors: make(map[string]*visitor),
-		rate:     rate.Limit(rps),
-		burst:    burst,
+		visitors:   make(map[string]*visitor),
+		rate:       rate.Limit(rps),
+		burst:      burst,
+		done:       make(chan struct{}),
+		trustProxy: trustProxy,
 	}
 	go rl.cleanup()
 	return rl
+}
+
+// Close stops the cleanup goroutine.
+func (rl *RateLimiter) Close() {
+	close(rl.done)
 }
 
 func (rl *RateLimiter) getVisitor(ip string) (*rate.Limiter, bool) {
@@ -57,22 +68,30 @@ func (rl *RateLimiter) cleanup() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		rl.mu.Lock()
-		for ip, v := range rl.visitors {
-			if time.Since(v.lastSeen) > 3*time.Minute {
-				delete(rl.visitors, ip)
+	for {
+		select {
+		case <-ticker.C:
+			rl.mu.Lock()
+			for ip, v := range rl.visitors {
+				if time.Since(v.lastSeen) > 3*time.Minute {
+					delete(rl.visitors, ip)
+				}
 			}
+			rl.mu.Unlock()
+		case <-rl.done:
+			return
 		}
-		rl.mu.Unlock()
 	}
 }
 
 // extractClientIP returns the client IP from the request.
-// It uses the leftmost IP from X-Forwarded-For (set by Caddy), falling back to RemoteAddr.
-func extractClientIP(r *http.Request) string {
-	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		return strings.TrimSpace(strings.SplitN(forwarded, ",", 2)[0])
+// When trustProxy is true, the leftmost IP from X-Forwarded-For (set by reverse proxy) is used.
+// When false, only RemoteAddr is used to prevent spoofing.
+func extractClientIP(r *http.Request, trustProxy bool) string {
+	if trustProxy {
+		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+			return strings.TrimSpace(strings.SplitN(forwarded, ",", 2)[0])
+		}
 	}
 	return r.RemoteAddr
 }
@@ -87,7 +106,7 @@ func rateLimitReject(w http.ResponseWriter) {
 // Middleware returns an HTTP middleware that rate limits by client IP.
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := extractClientIP(r)
+		ip := extractClientIP(r, rl.trustProxy)
 
 		limiter, ok := rl.getVisitor(ip)
 		if !ok || !limiter.Allow() {
@@ -102,7 +121,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 // MiddlewareFunc wraps an http.HandlerFunc with rate limiting.
 func (rl *RateLimiter) MiddlewareFunc(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ip := extractClientIP(r)
+		ip := extractClientIP(r, rl.trustProxy)
 
 		limiter, ok := rl.getVisitor(ip)
 		if !ok || !limiter.Allow() {
