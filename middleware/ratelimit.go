@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -92,6 +93,11 @@ func extractClientIP(r *http.Request, trustProxy bool) string {
 		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
 			return strings.TrimSpace(strings.SplitN(forwarded, ",", 2)[0])
 		}
+	}
+	// RemoteAddr is "ip:port"; strip the port so limiting is per-IP,
+	// not per-connection.
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
 	}
 	return r.RemoteAddr
 }

@@ -119,12 +119,20 @@ func (s *MemoryTokenStore) StoreToken(info *TokenInfo) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.tokens[info.AccessToken] = info
+	s.tokens[info.AccessToken] = cloneTokenInfo(info)
 	if info.RefreshToken != "" {
 		s.refreshIndex[info.RefreshToken] = info.AccessToken
 	}
 
 	return nil
+}
+
+// cloneTokenInfo returns a shallow copy so callers can't mutate the live map
+// entry outside the store's lock. The GoogleToken pointer is shared but treated
+// as immutable: updates replace the pointer via UpdateGoogleToken.
+func cloneTokenInfo(info *TokenInfo) *TokenInfo {
+	c := *info
+	return &c
 }
 
 func (s *MemoryTokenStore) GetTokenByAccess(accessToken string) (*TokenInfo, error) {
@@ -140,7 +148,7 @@ func (s *MemoryTokenStore) GetTokenByAccess(accessToken string) (*TokenInfo, err
 		return nil, ErrTokenExpired
 	}
 
-	return info, nil
+	return cloneTokenInfo(info), nil
 }
 
 func (s *MemoryTokenStore) GetTokenByAccessIncludeExpired(accessToken string) (*TokenInfo, error) {
@@ -152,7 +160,7 @@ func (s *MemoryTokenStore) GetTokenByAccessIncludeExpired(accessToken string) (*
 		return nil, ErrTokenNotFound
 	}
 
-	return info, nil
+	return cloneTokenInfo(info), nil
 }
 
 func (s *MemoryTokenStore) GetTokenByRefresh(refreshToken string) (*TokenInfo, error) {
@@ -173,7 +181,7 @@ func (s *MemoryTokenStore) GetTokenByRefresh(refreshToken string) (*TokenInfo, e
 		return nil, ErrTokenExpired
 	}
 
-	return info, nil
+	return cloneTokenInfo(info), nil
 }
 
 func (s *MemoryTokenStore) DeleteToken(accessToken string) error {
