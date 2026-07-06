@@ -113,7 +113,9 @@ These fetch workspace data and return structured analysis requests:
 
 | Prompt | Arguments | Purpose |
 |--------|-----------|---------|
-| `audit_container` | accountId, containerId, workspaceId | Analyze workspace for naming issues, duplicates, orphaned items, security concerns |
+| `audit_container` | accountId, containerId, workspaceId | Analyze workspace for naming issues, duplicates, orphaned items, security concerns — checked against built-in best practices |
+| `best_practices_review` | accountId, containerId, workspaceId | Scored review (pass/warn/fail per category) against best-practice rules, with concrete fixes |
+| `plan_safe_edit` | accountId, containerId, change_description | Step-by-step plan for a change following the safe-edit workflow (workspace → diff → version → approved publish) |
 | `generate_tracking_plan` | accountId, containerId, workspaceId | Generate markdown documentation of all events, triggers, variables |
 | `suggest_ga4_setup` | goals (text description) | Recommend GA4 tag structure based on tracking goals |
 | `find_gallery_template` | templateName | Guide to find and import a Community Gallery template |
@@ -130,6 +132,18 @@ gtm://accounts/{accountId}/containers/{containerId}/workspaces/{workspaceId}/tag
 gtm://accounts/{accountId}/containers/{containerId}/workspaces/{workspaceId}/triggers
 gtm://accounts/{accountId}/containers/{containerId}/workspaces/{workspaceId}/variables
 ```
+
+Best-practices documents (static markdown, no authentication required):
+
+```
+gtm://best-practices                        # Index — start here
+gtm://best-practices/naming-organization    # Naming conventions, folders, orphans, workspace hygiene
+gtm://best-practices/safe-edit-workflow     # Workspace → diff → version → approved publish
+gtm://best-practices/ga4-consent            # GA4 tag patterns, consent mode v2, duplicate measurement
+gtm://best-practices/server-side            # Clients, transformations, PII redaction, first-party domains
+```
+
+Read the relevant best-practices document before creating or editing entities. Key rules: name entities `<Platform> - <Type> - <Descriptor>` (e.g. `GA4 - Event - purchase`, `DLV - transaction_id`); source measurement IDs from a lookup table or constant variable, never a literal in the tag; make changes in a dedicated workspace and show the `get_workspace_status` diff before versioning; publish only with explicit user approval. If the container already follows a different consistent convention, match it instead.
 
 ## Common Workflows
 

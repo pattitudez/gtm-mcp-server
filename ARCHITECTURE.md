@@ -70,7 +70,12 @@ handler_helpers  → resolveWorkspace/resolveContainer (DRY: parse IDs → authe
 types.go         → Input/output structs shared between tools and client methods
 validation.go    → Input validation (required fields, format checks)
 errors.go        → Google API error → user-friendly message + retry with backoff
+resources.go     → MCP resources: GTM data via gtm:// URIs + static best-practices docs
+prompts.go       → MCP prompts (audit, best-practices review, safe-edit plan, tracking plan, ...)
+bestpractices/   → go:embed'd markdown rule docs (naming, safe edits, GA4/consent, server-side)
 ```
+
+**Best-practices single source:** the rule docs in `gtm/bestpractices/docs/*.md` are the only copy. Resources serve them verbatim (`gtm://best-practices/{topic}`, no auth required) and prompts inject them into their message text via `bestpractices.Get(topic)` — editing a doc updates every surface.
 
 **Fingerprint pattern:** Update operations fetch the current entity first, then pass `current.Fingerprint` as a URL parameter (not body field) to the Google API for optimistic concurrency control.
 

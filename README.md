@@ -477,10 +477,21 @@ gtm://accounts/.../workspaces/{id}/triggers
 gtm://accounts/.../workspaces/{id}/variables
 ```
 
+Best-practices documents (static markdown, readable without authentication):
+```
+gtm://best-practices                        # Index of all rule docs
+gtm://best-practices/naming-organization    # Naming conventions, folders, orphan cleanup
+gtm://best-practices/safe-edit-workflow     # Workspace → diff → version → publish
+gtm://best-practices/ga4-consent            # GA4 patterns, consent mode v2
+gtm://best-practices/server-side            # Clients, transformations, PII, first-party domains
+```
+
 ### Prompts (Workflow templates)
 | Prompt | Description |
 |--------|-------------|
-| `audit_container` | Comprehensive container analysis |
+| `audit_container` | Comprehensive container analysis against the built-in best practices |
+| `best_practices_review` | Scored review (pass/warn/fail per category) with concrete fixes |
+| `plan_safe_edit` | Step-by-step plan for a change following the safe-edit workflow |
 | `generate_tracking_plan` | Markdown documentation generator |
 | `suggest_ga4_setup` | GA4 implementation recommendations |
 | `find_gallery_template` | Guide to find and import Community Gallery templates |
@@ -489,7 +500,7 @@ gtm://accounts/.../workspaces/{id}/variables
 
 ## Better AI Context
 
-The server provides two resources to help AI assistants use it more effectively — one for any LLM or agent, and one specifically for Claude Code users.
+The server provides two resources to help AI assistants use it more effectively — one for any LLM or agent, and one specifically for Claude Code users. It also ships opinionated GTM configuration rules as MCP resources (`gtm://best-practices`), so any connected agent can read them before making changes.
 
 ### llms.txt — For Any LLM or Agent
 
