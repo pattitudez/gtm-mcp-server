@@ -6,6 +6,7 @@ go-sdk-main/
 !README.md
 !ARCHITECTURE.md
 !skills/**/*.md
+!gtm/bestpractices/docs/*.md
 .env.local
 .*/
 !.github/
