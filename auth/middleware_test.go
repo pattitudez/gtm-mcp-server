@@ -653,3 +653,50 @@ func TestMiddleware_SAMode_WrongKey_ValidOAuthToken(t *testing.T) {
 		t.Errorf("expected OAuth client ID in header, got %q", w.Header().Get("X-Client-ID"))
 	}
 }
+
+func TestMiddleware_OAuthUser_NoSATokenSource(t *testing.T) {
+	store := newMockTokenStore()
+	saTS := oauth2.StaticTokenSource(&oauth2.Token{
+		AccessToken: "google-sa-token",
+		Expiry:      time.Now().Add(time.Hour),
+	})
+
+	oauthToken := &TokenInfo{
+		AccessToken: "valid-oauth-token",
+		ExpiresAt:   time.Now().Add(time.Hour),
+		GoogleToken: &oauth2.Token{
+			AccessToken: "google-oauth-token",
+			Expiry:      time.Now().Add(time.Hour),
+		},
+		ClientID:  "oauth-client",
+		CreatedAt: time.Now(),
+	}
+	store.StoreToken(oauthToken)
+
+	var capturedCtx context.Context
+	captureHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedCtx = r.Context()
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := saMiddlewareWithOAuth(store, "my-api-key", saTS)(captureHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer valid-oauth-token")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	if got := GetSATokenSource(capturedCtx); got != nil {
+		t.Error("OAuth user must NOT receive SA token source — would grant access to SA-managed containers")
+	}
+
+	if got := GetGoogleToken(capturedCtx); got == nil {
+		t.Error("OAuth user must have their own Google token in context")
+	} else if got.AccessToken != "google-oauth-token" {
+		t.Errorf("expected user's Google token, got %q", got.AccessToken)
+	}
+}

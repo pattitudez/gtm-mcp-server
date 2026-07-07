@@ -26,7 +26,7 @@ var llmsTxt string
 
 const (
 	serverName    = "gtm-mcp-server"
-	serverVersion = "1.6.0"
+	serverVersion = "1.7.0"
 )
 
 func main() {
@@ -162,10 +162,29 @@ func main() {
 			"protected_resource_metadata", cfg.BaseURL+"/.well-known/oauth-protected-resource",
 			"authorization_server_metadata", cfg.BaseURL+"/.well-known/oauth-authorization-server",
 		)
-	} else {
-		logger.Warn("OAuth not configured, running without authentication", "error", cfg.ValidateAuth())
+	} else if saTokenSource != nil {
+		// S2S-only mode: no OAuth, but SA key is configured.
+		// Require API-key auth — don't serve MCP unauthenticated.
+		logger.Info("S2S-only mode (no OAuth), API key required for all MCP requests")
 
-		// Register OAuth endpoints that return proper errors
+		oauthNotConfiguredHandler := func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":             "server_error",
+				"error_description": "OAuth is not configured on this server. Use API key authentication.",
+			})
+		}
+		mux.HandleFunc("GET /authorize", oauthLimiter.MiddlewareFunc(oauthNotConfiguredHandler))
+		mux.HandleFunc("GET /oauth/callback", oauthLimiter.MiddlewareFunc(oauthNotConfiguredHandler))
+		mux.HandleFunc("POST /token", oauthLimiter.MiddlewareFunc(oauthNotConfiguredHandler))
+		mux.HandleFunc("POST /register", registerLimiter.MiddlewareFunc(oauthNotConfiguredHandler))
+
+		s2sMiddleware := auth.Middleware(auth.NewMemoryTokenStore(), nil, logger, cfg.BaseURL, cfg.AccessTokenTTL, urlResolver, saTokenSource, cfg.ServiceAccountAPIKey)
+		mux.Handle("/", s2sMiddleware(maxBytesHandler(5<<20, mcpHandler)))
+	} else {
+		logger.Warn("No authentication configured (no OAuth, no API key), running open")
+
 		oauthNotConfiguredHandler := func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -179,7 +198,7 @@ func main() {
 		mux.HandleFunc("POST /token", oauthLimiter.MiddlewareFunc(oauthNotConfiguredHandler))
 		mux.HandleFunc("POST /register", registerLimiter.MiddlewareFunc(oauthNotConfiguredHandler))
 
-		// MCP endpoint without auth (still apply body size limit)
+		// Truly open — no auth at all (local dev only)
 		mux.Handle("/", maxBytesHandler(5<<20, mcpHandler))
 	}
 
