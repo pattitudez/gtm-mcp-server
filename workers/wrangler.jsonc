@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gtm-mcp-workers",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["GtmMCP"]
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "GtmMCP",
+        "name": "MCP_OBJECT"
+      }
+    ]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "OAUTH_KV",
+      // Replace with the id printed by: npx wrangler kv namespace create OAUTH_KV
+      "id": "<REPLACE_WITH_KV_NAMESPACE_ID>"
+    }
+  ],
+  "rules": [
+    { "type": "Text", "globs": ["**/*.md"], "fallthrough": true },
+    { "type": "Text", "globs": ["**/*.txt"], "fallthrough": true }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "dev": {
+    "port": 8788
+  }
+  // To serve on a custom domain once the gtmeditor.com zone is on Cloudflare:
+  // "routes": [{ "pattern": "cf-mcp.gtmeditor.com", "custom_domain": true }]
+}
