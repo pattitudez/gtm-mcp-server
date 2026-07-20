@@ -1,0 +1,6 @@
+# Copy to .dev.vars for local development (wrangler dev reads it automatically).
+# Values come from your Google Cloud Console OAuth client (Web application type).
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
+# Random hex used to sign the client-approval cookie. Generate with: openssl rand -hex 32
+COOKIE_ENCRYPTION_KEY=generate-a-random-hex-string
