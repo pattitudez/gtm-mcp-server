@@ -3,8 +3,10 @@ module gtm-mcp-server
 go 1.25.8
 
 require (
+	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/joho/godotenv v1.5.1
 	github.com/modelcontextprotocol/go-sdk v1.6.1
+	github.com/redis/go-redis/v9 v9.21.0
 	github.com/yosida95/uritemplate/v3 v3.0.2
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/time v0.15.0
@@ -26,11 +28,13 @@ require (
 	github.com/googleapis/gax-go/v2 v2.22.0 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0 // indirect
 	go.opentelemetry.io/otel v1.43.0 // indirect
 	go.opentelemetry.io/otel/metric v1.43.0 // indirect
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect

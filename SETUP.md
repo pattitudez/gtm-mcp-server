@@ -8,7 +8,7 @@ There are two ways to use it. Pick one:
 | | Option A: Hosted server | Option B: Self-host this fork |
 |---|---|---|
 | Effort | ~2 minutes | ~30–45 minutes one-time |
-| Infrastructure | None (uses `mcp.gtmeditor.com`, run by the upstream author) | Cloud Run or any Docker host |
+| Infrastructure | None (uses `mcp.gtmeditor.com`, run by the upstream author) | Vercel, Cloud Run, or any Docker host |
 | Where your Google tokens live | Upstream author's server (in memory) | Your own server |
 | Cost | Free | Cloud Run free tier covers light agency use; a small VPS also works |
 
@@ -69,7 +69,42 @@ Done. Skip to [Client access model](#client-access-model).
 
 ### Step 2 — Deploy
 
-#### Path 1: Google Cloud Run (recommended — no server to maintain, HTTPS included)
+#### Path 1: Vercel (runs the fork's `Dockerfile.vercel` on Fluid compute)
+
+This fork adds a Redis-backed token store so OAuth sessions survive Vercel's
+scale-to-zero and instance churn. You need a Redis database — Upstash's free
+tier via the Vercel Marketplace is plenty.
+
+1. **Create the Redis database:** Vercel Dashboard → **Storage** → **Create
+   Database** → **Upstash for Redis** (or any Redis provider). Copy the
+   connection URL — it looks like `rediss://default:...@...upstash.io:6379`.
+2. **Import the repo:** Vercel Dashboard → **Add New → Project** → import
+   `pattitudez/gtm-mcp-server`. Vercel detects `Dockerfile.vercel` at the
+   root and builds it as a container function — no framework preset needed.
+3. **Set environment variables** (Project → Settings → Environment Variables):
+   ```
+   PORT=8080
+   GOOGLE_CLIENT_ID=your-id.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=your-secret
+   REDIS_URL=rediss://default:...@...upstash.io:6379
+   BASE_URL=https://your-project.vercel.app
+   ```
+   `PORT=8080` is required — it tells Vercel which port the container
+   listens on. For `BASE_URL`, use your production domain (either the
+   `*.vercel.app` domain or a custom domain you attach).
+4. **Deploy** (push to the repo's default branch, or `vercel deploy --prod`),
+   then set the third OAuth redirect URI in Google Cloud Console to
+   `https://your-project.vercel.app/oauth/callback` (match your real domain).
+
+Notes:
+- Production instances sleep after ~5 minutes idle — with Redis configured
+  that's invisible: your sign-in survives and the next request just cold-starts.
+- Startup verifies the Redis connection; if a deploy fails, check the
+  runtime logs for `redis ping failed` (wrong URL or missing `rediss://`).
+- Preview deployments get different URLs that won't match `BASE_URL` or the
+  OAuth redirect URI — connect Claude to the production domain only.
+
+#### Path 2: Google Cloud Run (no code-config beyond env vars, HTTPS included)
 
 ```bash
 # From the repo root, first deploy (BASE_URL is a placeholder for now):
@@ -93,11 +128,12 @@ redirect URI to `https://gtm-mcp-xxxxx-uc.a.run.app/oauth/callback`.
 Notes:
 - For production hygiene, move the client secret to Secret Manager
   (`--set-secrets` instead of `--set-env-vars`).
-- Tokens are stored **in memory**, so a new Cloud Run revision or cold start
-  means reconnecting the connector in Claude. Setting
-  `--min-instances 1` reduces this (small always-on cost).
+- Without `REDIS_URL`, tokens are stored **in memory**, so a new revision or
+  cold start means reconnecting the connector in Claude. Either set
+  `--min-instances 1` (small always-on cost) or add a `REDIS_URL` env var
+  like the Vercel path.
 
-#### Path 2: Docker on a VPS you already run
+#### Path 3: Docker on a VPS you already run
 
 ```bash
 git clone https://github.com/pattitudez/gtm-mcp-server.git
@@ -155,8 +191,12 @@ site plus every client site.
   "Some Form Submissions") are silently dropped by Google's API — configure
   those specific conditions in the GTM web UI
   ([upstream issue #33](https://github.com/paolobietolini/gtm-mcp-server/issues/33)).
-- Tokens are held in memory only; restarting the server logs everyone out
+- With `REDIS_URL` set, sign-ins survive restarts and scale-to-zero. Without
+  it, tokens are held in memory only and a restart logs everyone out
   (reconnect the connector to sign back in).
+- Redis stores your Google OAuth tokens (encrypted in transit via `rediss://`).
+  Treat the Redis URL like a password, and use a dedicated database rather
+  than one shared with other apps.
 
 ## Better results in Claude Code
 

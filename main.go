@@ -134,8 +134,21 @@ func main() {
 	registerLimiter := middleware.NewRateLimiter(2, 5, cfg.TrustProxy)   // 2 req/s, burst 5
 
 	if oauthConfigured {
-		// Set up OAuth
-		tokenStore = auth.NewMemoryTokenStore()
+		// Set up OAuth. Redis-backed storage (REDIS_URL) lets sessions survive
+		// restarts and scale-out; otherwise tokens live in process memory.
+		if cfg.RedisURL != "" {
+			redisStore, redisErr := auth.NewRedisTokenStore(cfg.RedisURL)
+			if redisErr != nil {
+				logger.Error("failed to connect to Redis token store", "error", redisErr)
+				os.Exit(1)
+			}
+			defer redisStore.Close()
+			tokenStore = redisStore
+			logger.Info("token store: redis")
+		} else {
+			tokenStore = auth.NewMemoryTokenStore()
+			logger.Info("token store: memory (sessions reset on restart)")
+		}
 		googleProvider := auth.NewGoogleProvider(
 			cfg.GoogleClientID,
 			cfg.GoogleClientSecret,
