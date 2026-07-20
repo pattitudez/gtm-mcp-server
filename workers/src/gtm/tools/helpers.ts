@@ -1,4 +1,17 @@
+import { z } from "zod";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+
+/** Shared path params carried by every workspace-scoped tool. */
+export const workspaceParams = {
+  accountId: z.string().describe("The GTM account ID"),
+  containerId: z.string().describe("The GTM container ID"),
+  workspaceId: z.string().describe("The GTM workspace ID"),
+};
+
+export const containerParams = {
+  accountId: z.string().describe("The GTM account ID"),
+  containerId: z.string().describe("The GTM container ID"),
+};
 
 /** Serialize a tool output object the way the Go SDK does: pretty JSON text. */
 export function ok(output: unknown): CallToolResult {

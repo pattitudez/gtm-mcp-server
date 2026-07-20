@@ -14,7 +14,8 @@ import {
   SERVER_VERSION,
   type Props,
 } from "./types";
-import { registerUtilityTools } from "./gtm/tools/utility";
+import { GtmClient } from "./gtm/api";
+import { registerAllTools } from "./gtm/tools";
 
 export class GtmMCP extends McpAgent<Env, unknown, Props> {
   server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
@@ -50,7 +51,8 @@ export class GtmMCP extends McpAgent<Env, unknown, Props> {
   };
 
   async init() {
-    registerUtilityTools(this.server, () => this.props);
+    const getClient = () => new GtmClient(this.getAccessToken);
+    registerAllTools(this.server, getClient, () => this.props);
   }
 }
 
