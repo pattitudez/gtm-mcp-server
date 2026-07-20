@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "gtm-mcp-workers",
+  "name": "gtm-mcp-server",
   "main": "src/index.ts",
   "compatibility_date": "2025-06-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -18,11 +18,13 @@
       }
     ]
   },
+  // OAUTH_KV stores the encrypted OAuth grants/tokens. The id is omitted so
+  // Wrangler auto-provisions the namespace on deploy (and reuses the one bound
+  // to the Worker on later deploys). To pin an explicit namespace instead, run
+  // `npx wrangler kv namespace create OAUTH_KV` and add its id here.
   "kv_namespaces": [
     {
-      "binding": "OAUTH_KV",
-      // Replace with the id printed by: npx wrangler kv namespace create OAUTH_KV
-      "id": "<REPLACE_WITH_KV_NAMESPACE_ID>"
+      "binding": "OAUTH_KV"
     }
   ],
   "rules": [
