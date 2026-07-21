@@ -18,21 +18,14 @@
       }
     ]
   },
-  // OAUTH_KV stores the encrypted OAuth grants/tokens.
-  //
-  // SETUP (one-time): set "id" below to a real KV namespace ID from your
-  // account. A namespace named "gtm-mcp-server-oauth-kv" was likely already
-  // auto-created by an earlier build — find its ID under
-  // Storage & Databases -> KV in the Cloudflare dashboard, or create one
-  // with: npx wrangler kv namespace create OAUTH_KV
-  //
-  // Do NOT leave "id" out: wrangler's auto-provisioning (beta) cannot see
-  // pre-existing namespaces by name and fails every CI deploy with error
-  // 10014 once the namespace exists but the Worker doesn't
-  // (https://github.com/cloudflare/workers-sdk/issues/8721).
+  // OAUTH_KV stores the encrypted OAuth grants/tokens. The id is pinned to
+  // the "gtm-mcp-server-oauth-kv" namespace on the account so every deploy
+  // is deterministic (wrangler's beta auto-provisioning can 10014-loop in
+  // CI: https://github.com/cloudflare/workers-sdk/issues/8721).
   "kv_namespaces": [
     {
-      "binding": "OAUTH_KV"
+      "binding": "OAUTH_KV",
+      "id": "83702280fbb740358d950e074699f1b3"
     }
   ],
   "rules": [
