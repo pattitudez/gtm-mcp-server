@@ -18,10 +18,18 @@
       }
     ]
   },
-  // OAUTH_KV stores the encrypted OAuth grants/tokens. The id is omitted so
-  // Wrangler auto-provisions the namespace on deploy (and reuses the one bound
-  // to the Worker on later deploys). To pin an explicit namespace instead, run
-  // `npx wrangler kv namespace create OAUTH_KV` and add its id here.
+  // OAUTH_KV stores the encrypted OAuth grants/tokens.
+  //
+  // SETUP (one-time): set "id" below to a real KV namespace ID from your
+  // account. A namespace named "gtm-mcp-server-oauth-kv" was likely already
+  // auto-created by an earlier build — find its ID under
+  // Storage & Databases -> KV in the Cloudflare dashboard, or create one
+  // with: npx wrangler kv namespace create OAUTH_KV
+  //
+  // Do NOT leave "id" out: wrangler's auto-provisioning (beta) cannot see
+  // pre-existing namespaces by name and fails every CI deploy with error
+  // 10014 once the namespace exists but the Worker doesn't
+  // (https://github.com/cloudflare/workers-sdk/issues/8721).
   "kv_namespaces": [
     {
       "binding": "OAUTH_KV"
@@ -31,6 +39,10 @@
     { "type": "Text", "globs": ["**/*.md"], "fallthrough": true },
     { "type": "Text", "globs": ["**/*.txt"], "fallthrough": true }
   ],
+  // Minify the bundle: cuts parse/eval cost at Worker startup well below
+  // Cloudflare's 400ms deploy-time startup validation limit. keep_names
+  // (wrangler default: true) preserves runtime class/function names.
+  "minify": true,
   "observability": {
     "enabled": true
   },

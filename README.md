@@ -79,26 +79,57 @@ then list the tools. A good verification pass against a **scratch container**:
 
 ## Deploy
 
-```bash
-cd workers
-npx wrangler kv namespace create OAUTH_KV
-# paste the returned id into wrangler.jsonc ("kv_namespaces" → "id")
+This repo deploys via **Cloudflare Workers Builds** (the Git integration):
+every push to `main` runs `npx wrangler deploy`. One-time setup, in order:
 
-npx wrangler secret put GOOGLE_CLIENT_ID
-npx wrangler secret put GOOGLE_CLIENT_SECRET
-npx wrangler secret put COOKIE_ENCRYPTION_KEY   # openssl rand -hex 32
+**1. KV namespace ID (required — the deploy fails without it).**
+The OAuth token store needs a real namespace ID in `wrangler.jsonc`. In the
+Cloudflare dashboard go to **Storage & Databases → KV**. An earlier build has
+likely already auto-created one named `gtm-mcp-server-oauth-kv` — copy its ID.
+(No namespace there? Click *Create a namespace*, name it `OAUTH_KV`, copy the
+ID.) Then set it in `wrangler.jsonc`:
 
-npx wrangler deploy
+```jsonc
+"kv_namespaces": [
+  { "binding": "OAUTH_KV", "id": "<the-32-char-hex-id>" }
+]
 ```
 
-Note the deployed URL (`https://<worker>.<account>.workers.dev`) and add its
-`/callback` to the Google OAuth client.
+Commit and push — the build goes green. Don't leave `id` out: wrangler's
+auto-provisioning (beta) can't see pre-existing namespaces by name and loops
+on API error 10014 in CI
+([workers-sdk #8721](https://github.com/cloudflare/workers-sdk/issues/8721)).
+
+**2. Worker secrets (required for OAuth to function).**
+Dashboard → the `gtm-mcp-server` Worker → **Settings → Variables and
+Secrets** → add three entries of type *Secret*:
+
+| Name | Value |
+|---|---|
+| `GOOGLE_CLIENT_ID` | from your Google OAuth client |
+| `GOOGLE_CLIENT_SECRET` | from your Google OAuth client |
+| `COOKIE_ENCRYPTION_KEY` | output of `openssl rand -hex 32` (any long random hex) |
+
+**3. Google redirect URI.**
+Add `https://gtm-mcp-server.<your-subdomain>.workers.dev/callback` (the exact
+host is printed in the green deploy log) to the OAuth client's **Authorized
+redirect URIs** in Google Cloud Console.
+
+Alternative to steps handled by CI: run `npx wrangler deploy` once from your
+machine (Cloudflare's recommended bootstrap for Git-connected Workers) —
+interactive wrangler provisions KV and writes the ID back into
+`wrangler.jsonc` for you to commit.
+
+**Branch behavior**: pushes to `staging` run `npx wrangler versions upload`
+(a preview, not a production deploy). Preview builds fail with error 10061
+until `main` has deployed once, because only `wrangler deploy` can apply the
+Durable Object migration. Get `main` green first; staging previews follow.
 
 **Custom domain** (optional): with the zone on Cloudflare DNS, uncomment the
-`routes` block in `wrangler.jsonc` (e.g. `cf-mcp.gtmeditor.com`), redeploy,
-and add that `/callback` URI to the Google client. You can keep the Go server
-on `mcp.gtmeditor.com` until you're ready to cut over — the two servers issue
-their own tokens, so clients re-authenticate after switching.
+`routes` block in `wrangler.jsonc` (e.g. `cf-mcp.gtmeditor.com`), push,
+and add that `/callback` URI to the Google client. You can keep the old VPS
+server on `mcp.gtmeditor.com` until you're ready to cut over — the two servers
+issue their own tokens, so clients re-authenticate after switching.
 
 ## Connect from Claude
 
