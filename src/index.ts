@@ -1,8 +1,10 @@
 import OAuthProvider, {
   GrantType,
+  OAuthError,
   type TokenExchangeCallbackOptions,
   type TokenExchangeCallbackResult,
 } from "@cloudflare/workers-oauth-provider";
+import { isEmailAllowed } from "./auth/allowlist";
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { env } from "cloudflare:workers";
@@ -54,7 +56,9 @@ export class GtmMCP extends McpAgent<Env, unknown, Props> {
 
   async init() {
     const getClient = () => new GtmClient(this.getAccessToken);
-    registerAllTools(this.server, getClient, () => this.props);
+    registerAllTools(this.server, getClient, () => this.props, {
+      enableContainerDeletion: this.env.ENABLE_CONTAINER_DELETION === "true",
+    });
     registerResources(this.server, getClient);
     registerPrompts(this.server, getClient);
   }
@@ -76,6 +80,15 @@ async function tokenExchangeCallback(
     return { accessTokenTTL: Math.max(60, remaining) };
   }
   if (options.grantType === GrantType.REFRESH_TOKEN) {
+    // Enforce the allowlist on refresh too (only when one is configured, so
+    // grants issued before the allowlist existed keep working): a removed
+    // email is cut off within an hour instead of after 30 days.
+    if (env.ALLOWED_EMAILS && !isEmailAllowed(props.email, env.ALLOWED_EMAILS)) {
+      throw new OAuthError("invalid_grant", {
+        description: "this account is no longer allowlisted on this server",
+        statusCode: 400,
+      });
+    }
     const refreshed = await refreshGoogleToken({
       clientId: env.GOOGLE_CLIENT_ID,
       clientSecret: env.GOOGLE_CLIENT_SECRET,

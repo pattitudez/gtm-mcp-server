@@ -2,7 +2,7 @@
 // identical names, 6 prompts, and 8 resources (2 static + 6 templates).
 // Runs the real McpServer over an in-memory transport.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -76,10 +76,10 @@ const EXPECTED_PROMPTS = [
   "plan_safe_edit",
 ];
 
-async function connectedClient() {
+async function connectedClient(options?: { enableContainerDeletion?: boolean }) {
   const server = new McpServer({ name: "gtm-mcp-server-test", version: "0.0.0" });
   const getClient = () => new GtmClient(async () => "test-token");
-  registerAllTools(server, getClient, () => undefined);
+  registerAllTools(server, getClient, () => undefined, options);
   registerResources(server, getClient);
   registerPrompts(server, getClient);
 
@@ -90,11 +90,19 @@ async function connectedClient() {
 }
 
 describe("MCP surface parity with the Go server", () => {
-  it("registers exactly the 52 Go server tools", async () => {
+  it("registers the Go server tools minus delete_container by default", async () => {
     const client = await connectedClient();
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
-    expect(names).toEqual([...EXPECTED_TOOLS].sort());
+    const expected = EXPECTED_TOOLS.filter((t) => t !== "delete_container").sort();
+    expect(names).toEqual(expected);
+    expect(tools).toHaveLength(51);
+  });
+
+  it("registers all 52 tools when container deletion is enabled", async () => {
+    const client = await connectedClient({ enableContainerDeletion: true });
+    const { tools } = await client.listTools();
+    expect(tools.map((t) => t.name).sort()).toEqual([...EXPECTED_TOOLS].sort());
     expect(tools).toHaveLength(52);
   });
 
@@ -130,6 +138,38 @@ describe("MCP surface parity with the Go server", () => {
     const parsed = JSON.parse(content[0].text);
     expect(parsed.reply).toBe("pong: hi");
     expect(parsed.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+  });
+
+  it("emits an audit log line for every tool call", async () => {
+    const lines: string[] = [];
+    const spy = vi.spyOn(console, "log").mockImplementation((msg: string) => {
+      lines.push(String(msg));
+    });
+    try {
+      const client = await connectedClient();
+      await client.callTool({ name: "ping", arguments: { message: "audit-me" } });
+      await client.callTool({
+        name: "delete_tag",
+        arguments: { accountId: "1", containerId: "2", workspaceId: "3", tagId: "4" },
+      });
+    } finally {
+      spy.mockRestore();
+    }
+    const audits = lines
+      .filter((l) => l.startsWith("{"))
+      .map((l) => JSON.parse(l))
+      .filter((e) => e.audit === "tool_call");
+    expect(audits.map((a) => a.tool)).toEqual(["ping", "delete_tag"]);
+    const del = audits[1];
+    expect(del.args).toMatchObject({
+      accountId: "1",
+      containerId: "2",
+      workspaceId: "3",
+      tagId: "4",
+    });
+    expect(del.user).toBe("unknown");
+    expect(del.outcome).toBe("ok");
+    expect(typeof del.ms).toBe("number");
   });
 
   it("delete_tag refuses without confirm (no API call made)", async () => {

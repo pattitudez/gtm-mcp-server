@@ -109,6 +109,7 @@ Secrets** → add three entries of type *Secret*:
 | `GOOGLE_CLIENT_ID` | from your Google OAuth client |
 | `GOOGLE_CLIENT_SECRET` | from your Google OAuth client |
 | `COOKIE_ENCRYPTION_KEY` | output of `openssl rand -hex 32` (any long random hex) |
+| `ALLOWED_EMAILS` | comma-separated Google emails allowed to sign in (see below) |
 
 **3. Google redirect URI.**
 Add `https://gtm-mcp-server.<your-subdomain>.workers.dev/callback` (the exact
@@ -146,6 +147,31 @@ Site selection needs no server configuration: sign in with the Google
 account that has access to your client containers, then pick the container
 per call via `accountId`/`containerId`/`workspaceId` (start with
 `list_accounts`). The bundled skill in `skills/gtm-mcp/` works unchanged.
+
+## Access control & fail-safes
+
+- **Email allowlist (`ALLOWED_EMAILS`)** — comma-separated Google account
+  emails permitted to sign in; matching is case-insensitive. **Fail-closed:
+  with no allowlist configured, every new sign-in is rejected**, so set this
+  before (re-)authenticating. Set it as a Worker variable or secret in the
+  dashboard (`keep_vars` is enabled so dashboard-set variables survive
+  deploys). The list is also enforced on token refresh when configured, so
+  removing an email cuts that account off within about an hour.
+- **`delete_container` is not registered by default.** It is the only tool
+  whose damage isn't a one-click undo (GTM holds deleted containers in trash
+  for 30 days, then they're gone). Set `ENABLE_CONTAINER_DELETION=true` on
+  the Worker to register it, ideally temporarily.
+- **Audit log** — every tool call emits one JSON log line (tool name,
+  authenticated user, GTM path/entity IDs, ok/error, duration; never
+  parameter payloads or tokens). View them in the dashboard under the
+  Worker → **Logs** (observability is enabled in `wrangler.jsonc`).
+- **Recovery paths if an AI (or a human) breaks something in GTM**:
+  workspace edits aren't live until versioned *and* published; discard the
+  workspace to drop unpublished changes; publish a previous version from
+  GTM's Versions tab to roll back a bad publish; deleted containers are
+  restorable from GTM for 30 days.
+- Belt-and-braces: in claude.ai's connector settings you can additionally
+  toggle off individual tools (e.g. `publish_version`) client-side.
 
 ## Token model
 

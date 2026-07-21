@@ -4,6 +4,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Props } from "../../types";
 import type { GtmClient } from "../api";
+import { instrumentToolAudit } from "./audit";
 import { registerAccountTools } from "./accounts";
 import { registerBuiltInVariableTools } from "./builtins";
 import { registerClientTools } from "./clients";
@@ -19,14 +20,25 @@ import { registerVariableTools } from "./variables";
 import { registerVersionTools } from "./versions";
 import { registerWorkspaceTools } from "./workspaces";
 
+export interface ToolRegistrationOptions {
+  /** Register delete_container (default: false — see containers.ts). */
+  enableContainerDeletion?: boolean;
+}
+
 export function registerAllTools(
   server: McpServer,
   getClient: () => GtmClient,
   getProps: () => Props | undefined,
+  options: ToolRegistrationOptions = {},
 ) {
+  // Must run first so every tool registered below emits audit log lines.
+  instrumentToolAudit(server, getProps);
+
   registerUtilityTools(server, getProps);
   registerAccountTools(server, getClient);
-  registerContainerTools(server, getClient);
+  registerContainerTools(server, getClient, {
+    enableContainerDeletion: options.enableContainerDeletion,
+  });
   registerWorkspaceTools(server, getClient);
   registerTagTools(server, getClient);
   registerTriggerTools(server, getClient);

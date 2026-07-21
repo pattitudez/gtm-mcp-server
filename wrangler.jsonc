@@ -36,6 +36,9 @@
   // Cloudflare's 400ms deploy-time startup validation limit. keep_names
   // (wrangler default: true) preserves runtime class/function names.
   "minify": true,
+  // Preserve dashboard-set plain-text variables (e.g. ALLOWED_EMAILS) across
+  // deploys; without this, wrangler deletes vars that aren't in this file.
+  "keep_vars": true,
   "observability": {
     "enabled": true
   },

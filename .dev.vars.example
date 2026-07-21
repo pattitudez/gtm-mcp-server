@@ -4,3 +4,8 @@ GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-client-secret
 # Random hex used to sign the client-approval cookie. Generate with: openssl rand -hex 32
 COOKIE_ENCRYPTION_KEY=generate-a-random-hex-string
+# Comma-separated Google account emails allowed to sign in. REQUIRED:
+# with no allowlist configured, all new sign-ins are rejected.
+ALLOWED_EMAILS=you@example.com
+# Uncomment to register the delete_container tool (off by default).
+# ENABLE_CONTAINER_DELETION=true

@@ -15,7 +15,20 @@ const VALID_USAGE_CONTEXTS = new Set([
   "server",
 ]);
 
-export function registerContainerTools(server: McpServer, getClient: () => GtmClient) {
+export interface ContainerToolOptions {
+  /**
+   * delete_container is the one tool whose damage has a 30-day fuse instead
+   * of an undo button, so it is not registered unless explicitly enabled
+   * (ENABLE_CONTAINER_DELETION="true" on the Worker).
+   */
+  enableContainerDeletion?: boolean;
+}
+
+export function registerContainerTools(
+  server: McpServer,
+  getClient: () => GtmClient,
+  options: ContainerToolOptions = {},
+) {
   server.registerTool(
     "list_containers",
     {
@@ -125,6 +138,10 @@ export function registerContainerTools(server: McpServer, getClient: () => GtmCl
       }
     },
   );
+
+  if (!options.enableContainerDeletion) {
+    return;
+  }
 
   server.registerTool(
     "delete_container",

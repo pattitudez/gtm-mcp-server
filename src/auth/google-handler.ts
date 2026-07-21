@@ -7,6 +7,7 @@ import {
   exchangeCodeForTokens,
   fetchGoogleUserInfo,
 } from "./upstream";
+import { isEmailAllowed } from "./allowlist";
 import {
   clientIdAlreadyApproved,
   parseRedirectApproval,
@@ -41,7 +42,14 @@ function secretsGuard(c: { env: AuthEnv }): Response | null {
 
 app.get("/", (c) => {
   const origin = new URL(c.req.url).origin;
-  const ready = missingSecrets(c.env).length === 0;
+  const secretsOk = missingSecrets(c.env).length === 0;
+  const allowlistOk = !!c.env.ALLOWED_EMAILS;
+  const ready = secretsOk && allowlistOk;
+  const statusText = !secretsOk
+    ? "secrets not configured"
+    : !allowlistOk
+      ? "sign-ins locked — set the ALLOWED_EMAILS variable"
+      : "ready";
   return c.html(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -60,9 +68,8 @@ app.get("/", (c) => {
 <body>
   <h1>GTM MCP Server</h1>
   <p>An MCP server for Google Tag Manager, running on Cloudflare Workers.
-  Status: <strong class="${ready ? "ok" : "warn"}">${
-    ready ? "ready" : "secrets not configured"
-  }</strong> (<a href="/health">details</a>)</p>
+  Status: <strong class="${ready ? "ok" : "warn"}">${statusText}</strong>
+  (<a href="/health">details</a>)</p>
   <table>
     <tr><td><code>${origin}/mcp</code></td><td>MCP endpoint (streamable HTTP) — add this as a custom connector in claude.ai or Claude Desktop</td></tr>
     <tr><td><code>${origin}/sse</code></td><td>Legacy SSE transport</td></tr>
@@ -85,6 +92,8 @@ app.get("/health", (c) =>
       GOOGLE_CLIENT_ID: !!c.env.GOOGLE_CLIENT_ID,
       GOOGLE_CLIENT_SECRET: !!c.env.GOOGLE_CLIENT_SECRET,
       COOKIE_ENCRYPTION_KEY: !!c.env.COOKIE_ENCRYPTION_KEY,
+      ALLOWED_EMAILS: !!c.env.ALLOWED_EMAILS,
+      ENABLE_CONTAINER_DELETION: c.env.ENABLE_CONTAINER_DELETION === "true",
     },
   }),
 );
@@ -205,6 +214,20 @@ app.get("/callback", async (c) => {
   const userInfo = await fetchGoogleUserInfo(tokens.access_token);
   if (!userInfo.email) {
     return c.text("Could not determine Google account email", 400);
+  }
+
+  // Internal-use lock: only allowlisted Google accounts may complete a
+  // sign-in. Fails closed when no allowlist is configured.
+  if (!isEmailAllowed(userInfo.email, c.env.ALLOWED_EMAILS)) {
+    return c.text(
+      `Access denied for ${userInfo.email}: this server only accepts allowlisted Google accounts.\n` +
+        (c.env.ALLOWED_EMAILS
+          ? "Ask the server operator to add this email to the ALLOWED_EMAILS variable."
+          : "No allowlist is configured yet. Set the ALLOWED_EMAILS variable " +
+            "(comma-separated emails) on the Worker: Cloudflare dashboard -> " +
+            "this Worker -> Settings -> Variables and Secrets."),
+      403,
+    );
   }
 
   const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
